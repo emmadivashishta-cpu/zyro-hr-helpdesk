@@ -1,4 +1,5 @@
 import os
+import zipfile
 import streamlit as st
 from langchain_community.document_loaders import PyPDFDirectoryLoader
 from langchain_text_splitters import RecursiveCharacterTextSplitter
@@ -7,7 +8,6 @@ from langchain_community.vectorstores import FAISS
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_groq import ChatGroq
 
-# ── Page config ──────────────────────────────────────────────
 st.set_page_config(
     page_title="Acrux Dynamics HR Help Desk",
     page_icon="🏢",
@@ -17,12 +17,15 @@ st.set_page_config(
 st.title("🏢 Acrux Dynamics HR Help Desk")
 st.caption("Ask me anything about HR policies — leaves, salary, WFH, performance, and more!")
 
-# ── Load API key ─────────────────────────────────────────────
 GROQ_API_KEY = os.environ.get("GROQ_API_KEY", "")
 
-# ── Build RAG pipeline (cached) ───────────────────────────────
 @st.cache_resource(show_spinner="Loading HR policy documents...")
 def build_pipeline():
+    # Unzip hr_docs if not already extracted
+    if not os.path.exists("hr_docs") or len(os.listdir("hr_docs")) == 0:
+        with zipfile.ZipFile("hr_docs.zip", "r") as z:
+            z.extractall("hr_docs")
+
     loader = PyPDFDirectoryLoader("hr_docs/")
     documents = loader.load()
 
@@ -95,7 +98,6 @@ def ask_bot(question):
     sources = list({d.metadata.get("source", "Unknown") for d in docs})
     return {"answer": response.content, "sources": sources}
 
-# ── Chat UI ───────────────────────────────────────────────────
 if "messages" not in st.session_state:
     st.session_state.messages = []
 
@@ -124,5 +126,5 @@ if prompt := st.chat_input("Ask an HR question..."):
     st.session_state.messages.append({
         "role": "assistant",
         "content": result["answer"],
-        "sources": result["sources"]
+        "sources": result.get("sources", [])
     })
